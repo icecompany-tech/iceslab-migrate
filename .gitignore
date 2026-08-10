@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+
+# Audit output. Contains real subscriber data pulled from a source panel,
+# so it must never be committed, not even "just this once" for a bug report.
+#
+# Patterns are deliberately wide. The first version of this file matched
+# `audit-*` only, and the tool's own documented example writes `audit.txt`:
+# one dash away from committing 30 000 real usernames to a public repository.
+audit*.json
+audit*.txt
+report*.json
+report*.txt

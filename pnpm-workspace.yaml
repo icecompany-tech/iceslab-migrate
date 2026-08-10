@@ -1,0 +1,5 @@
+# esbuild ships a prebuilt binary and wants a postinstall to place it. vitest
+# needs it; nothing that runs in production does. Allowed explicitly so a fresh
+# clone installs without an interactive prompt.
+allowBuilds:
+  esbuild: true
