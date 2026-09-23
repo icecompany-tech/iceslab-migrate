@@ -12,7 +12,13 @@
  * a report that disagrees with an import, not as a silent truncation.
  */
 
-/** apps/panel-backend/src/modules/users/users.schemas.ts - UsernameSchema */
+/**
+ * apps/panel-backend/src/modules/users/users.schemas.ts - UsernameSchema
+ *
+ * Also the SOCKS5 / HTTP login of the Telegram entries since 2026-09-23, which
+ * is one more reason it may never admit a colon (HTTP Basic splits on it) or
+ * whitespace (the tg://socks link, a login typed by hand).
+ */
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 64;

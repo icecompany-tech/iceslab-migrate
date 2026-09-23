@@ -129,6 +129,26 @@ describe('user checks', () => {
     expect(find(result, 'username-invalid').count).toBe(1);
   });
 
+  it('flags a colon or any whitespace in a username, because it is a proxy login too', () => {
+    // Since 2026-09-23 the username is the SOCKS5 / HTTP login of the Telegram
+    // entries. HTTP Basic auth is `user:pass`, so a colon in the name splits
+    // it in the wrong place and the person is refused with the right password;
+    // a space breaks the tg://socks link and the hand-typed Desktop form. The
+    // panel's schema already refuses both, and this pins that an IMPORT does not
+    // walk past it on the strength of the schema alone.
+    const result = auditInventory(
+      inventory({
+        users: [
+          user({ id: 'a', username: 'john:doe', subscriptionToken: 'tokentoken1' }),
+          user({ id: 'b', username: 'john doe', subscriptionToken: 'tokentoken2' }),
+          user({ id: 'c', username: 'john\tdoe', subscriptionToken: 'tokentoken3' }),
+          user({ id: 'd', username: 'john_doe', subscriptionToken: 'tokentoken4' }),
+        ],
+      }),
+    );
+    expect(find(result, 'username-invalid').count).toBe(3);
+  });
+
   it('flags duplicate usernames, which our API could never edit afterwards', () => {
     const result = auditInventory(
       inventory({
