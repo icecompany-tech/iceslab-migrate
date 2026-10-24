@@ -6,7 +6,7 @@
  *   - `audit` reads a source panel and prints what a migration would and would
  *     not carry;
  *   - `templates` reads its subscription templates and writes them as local
- *     files, for the Iceslab panel to import (it renames the service key).
+ *     files with the service key made Iceslab's, for the panel to import.
  * Neither writes to the source or to a target, which is what makes the tool
  * safe to hand to an operator who has not decided to move yet.
  */
@@ -28,8 +28,9 @@ iceslab-migrate - move an existing panel's data into Iceslab
   iceslab-migrate templates --from <panel> --url <https://panel> --out-dir <dir>
 
   templates writes each subscription template of the source as a file named
-  <iceslab type>--<name>.yaml|json. Import them in Iceslab: Subscription ->
-  Templates -> Import file, or POST /api/subscription-templates/import.
+  <iceslab type>--<name>.yaml|json, its service key renamed to iceslab.
+  Import them in Iceslab: Subscription -> Templates -> Import file, or
+  POST /api/subscription-templates/import.
 
 Options
   --from <panel>       Source panel kind. Supported: remnawave
@@ -108,10 +109,11 @@ async function main(argv: string[]): Promise<number> {
       if (t.file && t.text !== null) {
         await writeFile(join(outDir, t.file), t.text, 'utf8');
         written++;
-        console.log(`  ${t.file}  (${t.sourceType} "${t.name}")`);
+        console.log(`  ${t.file}  (${t.sourceType} "${t.name}", ${t.renamed} service key${t.renamed === 1 ? '' : 's'} renamed)`);
       } else {
         // Said, not skipped in silence.
-        const why = t.type === null ? 'no Iceslab template type frames it' : 'the source holds no text for it';
+        const why =
+          t.type === null ? 'no Iceslab template type frames it' : t.refusal ?? 'the source holds no text for it';
         console.log(`  -  ${t.sourceType} "${t.name}": not written, ${why}`);
       }
     }

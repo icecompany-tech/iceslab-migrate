@@ -2,17 +2,18 @@
  * Subscription templates, read from the source and handed back as files.
  *
  * The operator who moves brings their templates along. The insertion contract
- * of these templates is Iceslab's too; only the service key differs, and the
- * panel renames it on import (POST /api/subscription-templates/import, or the
- * Import file button on the Templates screen), checking what it says. So this
- * step does not rewrite anything: it writes each template as the source holds
- * it, under a name that carries the Iceslab type, and the panel does the rest
- * with the same code an operator's own upload goes through.
+ * of these templates is Iceslab's too; only the service key differs, and it is
+ * renamed HERE (service-key.ts): the panel knows only its own key. Each file is
+ * written with `iceslab` in place, under a name that carries the Iceslab type,
+ * for the panel's import (POST /api/subscription-templates/import, or the
+ * Import file button on the Templates screen), which checks what the key says.
  *
- * Read-only like the rest of the tool: two GETs per run plus one per template.
+ * Read-only like the rest of the tool: one GET per run plus one per template
+ * the list carries without content.
  */
 
 import { asList, unwrapEnvelope, type Gettable } from './client.js';
+import { renameServiceKey, ServiceKeyError } from './service-key.js';
 
 /** Iceslab's template types (packages/shared/src/transport-support.ts,
  *  TEMPLATE_TYPES). Mirrored, like src/target/iceslab.ts. */
@@ -37,8 +38,14 @@ export interface SourceTemplate {
   sourceType: string;
   /** Null: a type Iceslab frames no file for (said in the report). */
   type: IceslabTemplateType | null;
-  /** The template text as the source holds it; null when it had none. */
+  /** The template text with the service key made ours; null when the source
+   *  had none or the key could not be (`refusal`). */
   text: string | null;
+  /** Keys renamed in it. */
+  renamed: number;
+  /** Why it is not written, in words, when the key stands where Iceslab reads
+   *  none or the text does not parse. */
+  refusal: string | null;
   /** The file it goes to, when it goes anywhere. */
   file: string | null;
 }
@@ -76,7 +83,18 @@ export async function collectTemplates(client: Gettable): Promise<SourceTemplate
     const sourceType = String(full.templateType ?? head.templateType ?? '');
     const name = String(full.name ?? head.name ?? '');
     const type = TEMPLATE_TYPE_MAP[sourceType] ?? null;
-    const text = textOf(full);
+    const source = textOf(full);
+    let text: string | null = null;
+    let renamed = 0;
+    let refusal: string | null = null;
+    if (type && source !== null) {
+      try {
+        ({ text, renamed } = renameServiceKey(source));
+      } catch (err) {
+        if (!(err instanceof ServiceKeyError)) throw err;
+        refusal = err.message;
+      }
+    }
     let file: string | null = null;
     if (type && text !== null) {
       file = templateFileName(type, name);
@@ -84,7 +102,7 @@ export async function collectTemplates(client: Gettable): Promise<SourceTemplate
       for (let i = 2; taken.has(file); i++) file = templateFileName(type, `${name}-${i}`);
       taken.add(file);
     }
-    out.push({ name, sourceType, type, text, file });
+    out.push({ name, sourceType, type, text, renamed, refusal, file });
   }
   return out;
 }

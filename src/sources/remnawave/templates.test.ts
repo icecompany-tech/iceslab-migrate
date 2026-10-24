@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Gettable } from './client.js';
 import { collectTemplates, templateFileName } from './templates.js';
+import { SOURCE_SERVICE_KEY } from './service-key.js';
 
 const yaml = 'proxies: # LEAVE THIS LINE!\n';
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
@@ -41,6 +42,18 @@ describe('collectTemplates', () => {
     const [t] = await collectTemplates(client);
     expect(t).toMatchObject({ type: 'stash', text: yaml, file: 'stash--stash.yaml' });
     expect(client.get).toHaveBeenCalledWith('/api/subscription-templates/u1');
+  });
+
+  it('writes the service key as Iceslab\'s, and a key it cannot place is said, not written', async () => {
+    const t = await collectTemplates(
+      source([
+        { uuid: 'a', name: 'ok', templateType: 'MIHOMO', encodedTemplateYaml: b64(`${SOURCE_SERVICE_KEY}:\n  includeHiddenHosts: false\nproxies:\n`) },
+        { uuid: 'b', name: 'odd', templateType: 'MIHOMO', encodedTemplateYaml: b64(`proxies:\ndns:\n  ${SOURCE_SERVICE_KEY}: {}\n`) },
+      ]),
+    );
+    expect(t[0]).toMatchObject({ text: 'iceslab:\n  includeHiddenHosts: false\nproxies:\n', renamed: 1, file: 'mihomo--ok.yaml' });
+    expect(t[1]).toMatchObject({ text: null, file: null });
+    expect(t[1]!.refusal).toMatch(/^line 3:/);
   });
 
   it('two names that clean to one file stay two files', async () => {

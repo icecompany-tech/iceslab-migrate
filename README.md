@@ -18,11 +18,13 @@ read-only, the client has exactly one verb (`get`), and nothing is written to
 the source or to a target.
 
 `templates` reads the source's subscription templates and writes each as a
-local file named `<iceslab type>--<name>.yaml|json`. Import those in Iceslab
-(Subscription -> Templates -> Import file, or
-`POST /api/subscription-templates/import`): the panel renames the source's
-service key to its own and checks what it says. Like `audit`, it writes to no
-panel.
+local file named `<iceslab type>--<name>.yaml|json`, with the source's service
+key renamed to `iceslab` where Iceslab reads one (the top of the template, a
+proxy group, a proxy provider) and every other byte as it was. A key anywhere
+else is reported with its line and that file is not written. Import the files
+in Iceslab (Subscription -> Templates -> Import file, or
+`POST /api/subscription-templates/import`), which checks what the key says.
+Like `audit`, it writes to no panel.
 
 Import of users, squads and hosts is not implemented yet.
 
