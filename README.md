@@ -7,17 +7,24 @@ Command-line tool for migrating an existing proxy panel into
 
 | Source | Status |
 |---|---|
-| `remnawave` | audit implemented |
+| `remnawave` | audit, templates implemented |
 | `3x-ui` | planned |
 
 ## Status
 
-Only `audit` is implemented: it reads a source panel and reports what a
-migration would carry, what it would carry with losses, and what it cannot carry
-at all. The source is opened read-only, the client has exactly one verb (`get`),
-and nothing is written to the source or to a target.
+`audit` reads a source panel and reports what a migration would carry, what it
+would carry with losses, and what it cannot carry at all. The source is opened
+read-only, the client has exactly one verb (`get`), and nothing is written to
+the source or to a target.
 
-Import is not implemented yet.
+`templates` reads the source's subscription templates and writes each as a
+local file named `<iceslab type>--<name>.yaml|json`. Import those in Iceslab
+(Subscription -> Templates -> Import file, or
+`POST /api/subscription-templates/import`): the panel renames the source's
+service key to its own and checks what it says. Like `audit`, it writes to no
+panel.
+
+Import of users, squads and hosts is not implemented yet.
 
 ## Requirements
 
@@ -39,6 +46,14 @@ pnpm install
 
 ```bash
 iceslab-migrate audit --from <panel> --url <https://panel> [options]
+iceslab-migrate templates --from <panel> --url <https://panel> --out-dir <dir>
+```
+
+Subscription templates to files:
+
+```bash
+export SOURCE_TOKEN='<api token>'
+pnpm dev templates --from remnawave --url https://panel.example.com --out-dir templates-out
 ```
 
 Audit, report to stdout:
@@ -85,6 +100,7 @@ node dist/cli.js audit --from remnawave --url https://panel.example.com
 | `--token <token>` | `SOURCE_TOKEN` | | API token. Prefer the env var: an argument lands in shell history and in the process list |
 | `--out <file>` | | | Write the text report here as well as to stdout |
 | `--json <file>` | | | Write the machine-readable result here |
+| `--out-dir <dir>` | | | `templates`: the folder the files go to, created. Required there |
 | `--page-size <n>` | | `500` | Rows per request while paging |
 | `--throttle-ms <n>` | | `0` | Pause between requests |
 | `--timeout-ms <n>` | | `30000` | Per-request timeout |

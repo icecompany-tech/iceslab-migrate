@@ -2,14 +2,20 @@
 /**
  * Command line entry point.
  *
- * Today it does one thing: `audit`, which reads a source panel and prints what
- * a migration would and would not carry. It writes nothing anywhere - not to
- * the source, not to a target - which is what makes it safe to hand to an
- * operator who has not decided to move yet.
+ * Two commands, both read-only towards every panel:
+ *   - `audit` reads a source panel and prints what a migration would and would
+ *     not carry;
+ *   - `templates` reads its subscription templates and writes them as local
+ *     files, for the Iceslab panel to import (it renames the service key).
+ * Neither writes to the source or to a target, which is what makes the tool
+ * safe to hand to an operator who has not decided to move yet.
  */
 
 import { parseArgs } from 'node:util';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { ReadOnlyClient } from './sources/remnawave/client.js';
+import { collectTemplates } from './sources/remnawave/templates.js';
 import { auditInventory } from './analysis/audit.js';
 import { renderReport } from './report/text.js';
 import { RemnawaveAdapter } from './sources/remnawave/adapter.js';
@@ -19,6 +25,11 @@ const USAGE = `
 iceslab-migrate - move an existing panel's data into Iceslab
 
   iceslab-migrate audit --from <panel> --url <https://panel> [options]
+  iceslab-migrate templates --from <panel> --url <https://panel> --out-dir <dir>
+
+  templates writes each subscription template of the source as a file named
+  <iceslab type>--<name>.yaml|json. Import them in Iceslab: Subscription ->
+  Templates -> Import file, or POST /api/subscription-templates/import.
 
 Options
   --from <panel>       Source panel kind. Supported: remnawave
@@ -27,6 +38,7 @@ Options
                        lands in shell history and in the process list
   --out <file>         Write the report here as well as to stdout
   --json <file>        Write the machine-readable result here
+  --out-dir <dir>      templates: the folder the files go to (created)
   --page-size <n>      Rows per request when paging (default 500)
   --throttle-ms <n>    Pause between requests (default 0)
   --timeout-ms <n>     Per-request timeout (default 30000)
@@ -52,6 +64,7 @@ async function main(argv: string[]): Promise<number> {
       token: { type: 'string' },
       out: { type: 'string' },
       json: { type: 'string' },
+      'out-dir': { type: 'string' },
       'page-size': { type: 'string' },
       'throttle-ms': { type: 'string' },
       'timeout-ms': { type: 'string' },
@@ -66,8 +79,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const command = positionals[0];
-  if (command !== 'audit') {
-    console.error(`Unknown command "${command}". Only "audit" exists so far.`);
+  if (command !== 'audit' && command !== 'templates') {
+    console.error(`Unknown command "${command}". The commands are "audit" and "templates".`);
     return 1;
   }
 
@@ -77,6 +90,34 @@ async function main(argv: string[]): Promise<number> {
 
   if (!url) return fail('Missing --url.');
   if (!token) return fail('Missing token. Pass --token or set SOURCE_TOKEN.');
+
+  if (command === 'templates') {
+    if (from !== 'remnawave') return fail(`Unknown source "${from}". Supported: remnawave.`);
+    const outDir = values['out-dir'];
+    if (!outDir) return fail('Missing --out-dir.');
+    const client = new ReadOnlyClient({
+      baseUrl: url,
+      token,
+      throttleMs: toInt(values['throttle-ms'], 0),
+      timeoutMs: toInt(values['timeout-ms'], 30_000),
+    });
+    const templates = await collectTemplates(client);
+    await mkdir(outDir, { recursive: true });
+    let written = 0;
+    for (const t of templates) {
+      if (t.file && t.text !== null) {
+        await writeFile(join(outDir, t.file), t.text, 'utf8');
+        written++;
+        console.log(`  ${t.file}  (${t.sourceType} "${t.name}")`);
+      } else {
+        // Said, not skipped in silence.
+        const why = t.type === null ? 'no Iceslab template type frames it' : 'the source holds no text for it';
+        console.log(`  -  ${t.sourceType} "${t.name}": not written, ${why}`);
+      }
+    }
+    console.log(`${written} of ${templates.length} templates written to ${outDir}`);
+    return 0;
+  }
 
   const adapter = makeAdapter(from, {
     baseUrl: url,
